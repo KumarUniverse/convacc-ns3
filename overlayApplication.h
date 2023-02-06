@@ -29,8 +29,8 @@ public:
     /** Init **/
     overlayApplication();
     virtual ~overlayApplication();
-    // void InitApp(netw* meta, uint32_t localId, uint32_t MaxPktSize); // don't need meta class for now
-    void InitApp(uint32_t localId, uint32_t MaxPktSize);
+    //void InitApp(netw* meta, uint32_t localId, uint32_t MaxPktSize); // don't need meta class for now
+    void InitApp(uint32_t localId); //, uint32_t MaxPktSize);
     void SetLocalID(uint32_t localID);
     uint32_t GetLocalID(void) const;
 
@@ -45,7 +45,7 @@ public:
 
     // Do later:
     // bool is_overlay; // Don't think I need this
-    // std::vector<Ptr<Socket>> nr_socket;
+    std::vector<Ptr<Socket>> nr_socket;
     // netw* meta;
 
     // void ScheduleProbing(Time dt, uint32_t idx);
@@ -62,7 +62,9 @@ private:
 
 
     // Do later:
-    // void SetTag(SDtag& tagToUse, uint8_t SourceID, uint8_t DestID, uint8_t currentHop = 1, uint32_t PktID = 0, uint8_t IsProbe = 0, uint8_t IsQueued = 0, uint8_t SandWichID = 10, uint8_t SandWichLargeID=0);
+    // void SetTag(SDtag& tagToUse, uint8_t SourceID, uint8_t DestID,
+    //     uint8_t currentHop = 1, uint32_t PktID = 0, uint8_t IsProbe = 0, uint8_t,
+    //     IsQueued = 0, uint8_t SandWichID = 10, uint8_t SandWichLargeID=0);
 
     // void ScheduleBackground(Time dt, uint32_t idx);
     // void SendBackground(uint32_t idx);
