@@ -142,8 +142,8 @@ main(int argc, char* argv[])
      * Underlay Network
      *
      */
-    NodeContainer underlayNodes; // N_NODES number of underlay nodes in total.
-    //underlayNodes.Add(ueNodes); // Potential conflict with nrHelper->InstallUeDevice (ueNodes, allBwps);
+    NodeContainer underlayNodes; // N_NODES number of underlay nodes in total (if UEs are included).
+    // underlayNodes.Add(ueNodes); // Potential conflict with nrHelper->InstallUeDevice (ueNodes, allBwps);
     underlayNodes.Add(router1Nodes);
     underlayNodes.Add(router2Nodes);
     underlayNodes.Add(hostNode);
@@ -182,6 +182,7 @@ main(int argc, char* argv[])
         // vec_app[i]->SetStopTime(MilliSeconds(stop_time));
         underlayNodes.Get(i)->AddApplication(vec_app[i]);
         vec_app[i]->SetRecvSocket(); // ERROR you may get here: assert failed. cond="socketFactory"
+        // The error gets thrown when UEs are included in the underlay.
     }
 
     // Specify the src-dest links between the underlay nodes using a map.
@@ -211,17 +212,19 @@ main(int argc, char* argv[])
     mob.SetMobilityModel("ns3::ConstantPositionMobilityModel");
 
     Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator>();
-    uePositionAlloc->Add(Vector(10, 20, 0));
-    uePositionAlloc->Add(Vector(20, 30, 0));
-    uePositionAlloc->Add(Vector(30, 40, 0));
-    uePositionAlloc->Add(Vector(40, 50, 0));
+    int ueZVal = 2; // UEs must be placed at a slight height to prevent loss when comm. w/ BS.
+    uePositionAlloc->Add(Vector(10, 20, ueZVal));
+    uePositionAlloc->Add(Vector(20, 30, ueZVal));
+    uePositionAlloc->Add(Vector(30, 40, ueZVal));
+    uePositionAlloc->Add(Vector(40, 50, ueZVal));
     mob.SetPositionAllocator(uePositionAlloc);
     mob.Install(ueNodes);
 
     Ptr<ListPositionAllocator> gnbPositionAlloc = CreateObject<ListPositionAllocator>();
-    gnbPositionAlloc->Add(Vector(20, 10, 0));
-    gnbPositionAlloc->Add(Vector(30, 20, 0));
-    gnbPositionAlloc->Add(Vector(40, 30, 0));
+    int gnbZVal = 20; // base stations must be placed at a height to prevent loss when comm. w/ UE.
+    gnbPositionAlloc->Add(Vector(20, 10, gnbZVal)); 
+    gnbPositionAlloc->Add(Vector(30, 20, gnbZVal));
+    gnbPositionAlloc->Add(Vector(40, 30, gnbZVal));
     mob.SetPositionAllocator(gnbPositionAlloc);
     mob.Install(gnbNodes);
 
