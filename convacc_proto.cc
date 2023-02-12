@@ -21,9 +21,11 @@
 #include <vector>
 
 #define LISTENPORT 9
-// #define N_RH_NODES 6
-// N_RH_NODES - the total number of routers + host nodes in the network.
-#define N_NODES 10
+#define N_NODES 16
+// N_NODES - the total number of nodes in the network topology.
+#define N_U_NODES 6
+// N_U_NODES - the total number of underlay nodes (routers + host nodes) in the network.
+//#define N_NODES 10
 // N_NODES - the total number of UEs + routers + host nodes in the network.
 #define N_EDGES 15
 // N_EDGES - the total number of edges (wired or wireless) in the topology.
@@ -41,14 +43,14 @@ NS_LOG_COMPONENT_DEFINE("convacc_proto");
 
 void
 installOverlayApps(std::vector<Ptr<overlayApplication>> *vec_app_ptr,
-    std::map<uint32_t, uint32_t> *neighbors_map_ptr, Ipv4AddressHelper *addr_ptr, NodeContainer *nc_ptr)
+    std::vector<std::pair<uint32_t, uint32_t>> *neighbors_map_ptr, Ipv4AddressHelper *addr_ptr, NodeContainer *nc_ptr)
 {
     /**
      * Used to install the overlay applications on the underlay nodes.
     */
     std::vector<Ptr<overlayApplication>> &vec_app = *vec_app_ptr;
     vec_app[0]; // normal access thru reference.
-    std::map<uint32_t, uint32_t> &neighbors_map = *neighbors_map_ptr;
+    std::vector<std::pair<uint32_t, uint32_t>> &neighbors_map = *neighbors_map_ptr;
     Ipv4AddressHelper &address = *addr_ptr;
     NodeContainer &nc = *nc_ptr;
     
@@ -142,8 +144,7 @@ main(int argc, char* argv[])
      * Underlay Network
      *
      */
-    NodeContainer underlayNodes; // N_NODES number of underlay nodes in total (if UEs are included).
-    // underlayNodes.Add(ueNodes); // Potential conflict with nrHelper->InstallUeDevice (ueNodes, allBwps);
+    NodeContainer underlayNodes; // N_U_NODES number of underlay nodes in total (if UEs are included).
     underlayNodes.Add(router1Nodes);
     underlayNodes.Add(router2Nodes);
     underlayNodes.Add(hostNode);
@@ -154,14 +155,11 @@ main(int argc, char* argv[])
     // Add IP/TCP/UCP functionality to underlay nodes.
     InternetStackHelper internet;
     internet.Install(underlayNodes); // don't want to add internet to UEs here. ctrl+f internet.Install(ueNodes)
-    // internet.Install(router1Nodes);
-    // internet.Install(router2Nodes);
-    // internet.Install(hostNode);
 
     /**
      * Install Applications (Yudi's)
      **/
-    std::vector<Ptr<overlayApplication>> vec_app(N_NODES - numUEs);
+    std::vector<Ptr<overlayApplication>> vec_app(N_U_NODES);
     ObjectFactory fact;
     fact.SetTypeId("ns3::overlayApplication");
     fact.Set("RemotePort", UintegerValue(LISTENPORT));
@@ -174,7 +172,7 @@ main(int argc, char* argv[])
     
     double AppStartTime = 21200; // in microseconds
     // The AppStartTime is for the BS apps. The UE apps start immediately.
-    for (uint32_t i = 0; i < N_NODES - numUEs; i++)
+    for (uint32_t i = 0; i < N_U_NODES; i++)
     {
         vec_app[i] = fact.Create<overlayApplication>();
         vec_app[i]->InitApp(i);
@@ -186,9 +184,9 @@ main(int argc, char* argv[])
     }
 
     // Specify the src-dest links between the underlay nodes using a map.
-    std::map<uint32_t, uint32_t> neighbors_map;
+    // std::map<uint32_t, uint32_t> neighbors_map;
+    std::vector<std::pair<uint32_t, uint32_t>> neighbors_map;
     neighbors_map = {{0, 1}, {0, 2}, {1, 2}, {3, 4}, {2, 3}, {1, 5}}; // UEs excluded from underlayNodes
-    //neighbors_map = {{4, 5}, {4, 6}, {5, 6}, {7, 8}, {6, 7}, {5, 9}}; // use if UEs are included in underlayNodes
 
     installOverlayApps(&vec_app, &neighbors_map, &address, &underlayNodes);
 
@@ -213,10 +211,10 @@ main(int argc, char* argv[])
 
     Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator>();
     int ueZVal = 2; // UEs must be placed at a slight height to prevent loss when comm. w/ BS.
-    uePositionAlloc->Add(Vector(10, 20, ueZVal));
-    uePositionAlloc->Add(Vector(20, 30, ueZVal));
-    uePositionAlloc->Add(Vector(30, 40, ueZVal));
-    uePositionAlloc->Add(Vector(40, 50, ueZVal));
+    uePositionAlloc->Add(Vector(10, 15, ueZVal));
+    uePositionAlloc->Add(Vector(20, 25, ueZVal));
+    uePositionAlloc->Add(Vector(30, 30, ueZVal));
+    uePositionAlloc->Add(Vector(45, 40, ueZVal));
     mob.SetPositionAllocator(uePositionAlloc);
     mob.Install(ueNodes);
 
@@ -224,14 +222,14 @@ main(int argc, char* argv[])
     int gnbZVal = 20; // base stations must be placed at a height to prevent loss when comm. w/ UE.
     gnbPositionAlloc->Add(Vector(20, 10, gnbZVal)); 
     gnbPositionAlloc->Add(Vector(30, 20, gnbZVal));
-    gnbPositionAlloc->Add(Vector(40, 30, gnbZVal));
+    gnbPositionAlloc->Add(Vector(45, 30, gnbZVal));
     mob.SetPositionAllocator(gnbPositionAlloc);
     mob.Install(gnbNodes);
 
     Ptr<ListPositionAllocator> router1PositionAlloc = CreateObject<ListPositionAllocator>();
-    router1PositionAlloc->Add(Vector(80, 20, 0));
-    router1PositionAlloc->Add(Vector(70, 30, 0));
-    router1PositionAlloc->Add(Vector(60, 20, 0));
+    router1PositionAlloc->Add(Vector(70, 15, 0));
+    router1PositionAlloc->Add(Vector(65, 25, 0));
+    router1PositionAlloc->Add(Vector(60, 15, 0));
     mob.SetPositionAllocator(router1PositionAlloc);
     mob.Install(router1Nodes);
 
@@ -242,7 +240,7 @@ main(int argc, char* argv[])
     mob.Install(router2Nodes);
 
     Ptr<ListPositionAllocator> hostPositionAlloc = CreateObject<ListPositionAllocator>();
-    hostPositionAlloc->Add(Vector(90, 20, 0));
+    hostPositionAlloc->Add(Vector(80, 25, 0));
     mob.SetPositionAllocator(hostPositionAlloc);
     mob.Install(hostNode);
 
@@ -317,7 +315,8 @@ main(int argc, char* argv[])
     //Install and get the pointers to the NetDevices
     NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice (gnbNodes, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice (ueNodes, allBwps);
-    // ^^ERROR in prev 2 lines: msg="InternetStackHelper::Install (): Aggregating an InternetStack to a node with an existing Ipv4 object"
+    // ^^possible ERROR in prev 2 lines: msg="InternetStackHelper::Install ():
+    // Aggregating an InternetStack to a node with an existing Ipv4 object"
 
     int64_t randomStream = 1;
     randomStream += nrHelper->AssignStreams (enbNetDev, randomStream);
@@ -354,15 +353,19 @@ main(int argc, char* argv[])
     ipv4h.SetBase (Ipv4Address(p2pPgwEpc.data()), "255.0.0.0");
     const std::string Addr_IPv4_Network_gNB {std::to_string(network_base_number) + ".0.0.0"};
     
-    for (uint32_t j = 0; j < vec_app.size(); j++)
+
+    // Connect UPF (PGW) to router 2b and router 1b.
+    // The PGW should already be connected to the SGW.
+    std::vector<int> upf_links = {1, 4};
+    for (int i : upf_links)
     {
-        Ptr<Node> remoteHost = vec_app[j]->GetNode(); // ERROR: Attempt to dereference 0 pointer.
-        // connect a remoteHost to pgw. Set up routing too
-        vec_p2ph[j].SetDeviceAttribute ("DataRate", DataRateValue (DataRate ("1000Gb/s")));
-        vec_p2ph[j].SetDeviceAttribute ("Mtu", UintegerValue (10000));
-        vec_p2ph[j].SetChannelAttribute ("Delay", TimeValue (Seconds (0.000)));
-        vec_p2ph[j].DisableFlowControl();
-        NetDeviceContainer tmp_NetDeviceContainer = vec_p2ph[j].Install (pgw, remoteHost);
+        Ptr<Node> remoteHost = vec_app[i]->GetNode(); // possible ERROR: Attempt to dereference 0 pointer.
+        // Connect a remoteHost to PGW. Set up routing too
+        vec_p2ph[i].SetDeviceAttribute ("DataRate", DataRateValue (DataRate ("1000Gb/s")));
+        vec_p2ph[i].SetDeviceAttribute ("Mtu", UintegerValue (10000));
+        vec_p2ph[i].SetChannelAttribute ("Delay", TimeValue (Seconds (0.000)));
+        vec_p2ph[i].DisableFlowControl();
+        NetDeviceContainer tmp_NetDeviceContainer = vec_p2ph[i].Install (pgw, remoteHost);
         // std::cout << tmp_NetDeviceContainer.Get(0) << " " << tmp_NetDeviceContainer.Get(1) << std::endl;
         internetDevices.Add( tmp_NetDeviceContainer );
         Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting (remoteHost->GetObject<Ipv4> ());
@@ -371,7 +374,7 @@ main(int argc, char* argv[])
     }
     Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign (internetDevices);
 
-    internet.Install (ueNodes); // Possible ERROR
+    internet.Install (ueNodes);
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = epcHelper->AssignUeIpv4Address (NetDeviceContainer (ueNetDev));
     // Set the default gateway for the UEs
@@ -431,11 +434,27 @@ main(int argc, char* argv[])
     // End of 5G-Lena code.
 
 
-    // Set the position of the UPF using the mobility module.
+    // Set the position of the UPF (PGW node) using the mobility module.
     Ptr<ListPositionAllocator> upfPositionAlloc = CreateObject<ListPositionAllocator>();
-    upfPositionAlloc->Add(Vector(30, 30, 0));
+    int upfXPos = 50;
+    int upfYPos = 20;
+    int upfZPos = 0;
+    upfPositionAlloc->Add(Vector(upfXPos, upfYPos, upfZPos));
     mob.SetPositionAllocator(upfPositionAlloc);
     mob.Install(pgwContainer);
+
+    // Set the positions of the SGW and MME nodes the same as that of PGW.
+    // Note: Node 14 is assumed to be the SGW and node 15 as MME.
+    Ptr<Node> sgw = NodeList::GetNode (14);
+    Ptr<Node> mme = NodeList::GetNode (15);
+    NodeContainer sgwMmeContainer;
+    sgwMmeContainer.Add(sgw);
+    sgwMmeContainer.Add(mme);
+    Ptr<ListPositionAllocator> sgwMmePositionAlloc = CreateObject<ListPositionAllocator>();
+    sgwMmePositionAlloc->Add(Vector(upfXPos, upfYPos, upfZPos));
+    sgwMmePositionAlloc->Add(Vector(upfXPos, upfYPos, upfZPos));
+    mob.SetPositionAllocator(sgwMmePositionAlloc);
+    mob.Install(sgwMmeContainer);
     
 
     // Animate the network in NetAnim
@@ -444,25 +463,32 @@ main(int argc, char* argv[])
     /**
      * Name NetAnim Nodes
      */
-    // Name UE Nodes as MECs
-    anim.UpdateNodeDescription(0, "MEC1");
-    anim.UpdateNodeDescription(1, "MEC2");
-    anim.UpdateNodeDescription(2, "MEC3");
-    anim.UpdateNodeDescription(3, "MEC4");
+    // Name the 4 UE Nodes as MECs
+    for (int i = 0; i < 4; i++)
+        anim.UpdateNodeDescription(i, "MEC" + std::to_string(i));
 
-    // Name BS Nodes
-    anim.UpdateNodeDescription(4, "BS1");
-    anim.UpdateNodeDescription(5, "BS2");
-    anim.UpdateNodeDescription(6, "BS3");
+    // Name the 3 BS Nodes
+    for (int i = 0; i < 3; i++)
+    {
+        int j = i + 4;
+        anim.UpdateNodeDescription(j, "BS" + std::to_string(i));
+    }
 
-    // Name ISP1 Nodes
-    anim.UpdateNodeDescription(7, "R1a");
-    anim.UpdateNodeDescription(8, "R1b");
-    anim.UpdateNodeDescription(9, "R1c");
+    // Name the 3 ISP1 Nodes
+    for (int i = 0; i < 3; i++)
+    {
+        int j = i + 7;
+        char c = (char) (i + ((int) 'a'));
+        anim.UpdateNodeDescription(j, "R1" + std::string(1, c));
+    }
 
-    // Name ISP2 Nodes
-    anim.UpdateNodeDescription(10, "R2a");
-    anim.UpdateNodeDescription(11, "R2b");
+    // Name the 2 ISP2 Nodes
+    for (int i = 0; i < 2; i++)
+    {
+        int j = i + 10;
+        char c = (char) (i + ((int) 'a'));
+        anim.UpdateNodeDescription(j, "R2" + std::string(1, c));
+    }
 
     // Name Host Node
     anim.UpdateNodeDescription(12, "Host");
@@ -470,40 +496,45 @@ main(int argc, char* argv[])
     // Name UPF Node
     anim.UpdateNodeDescription(13, "UPF");
 
+    // Remove the names of SGW and MME nodes (14 & 15).
+    for (int i = 0; i < 2; i++)
+    {
+        int j = i + 14;
+        anim.UpdateNodeDescription(j, "");
+    }
+
     /**
      * Color NetAnim Nodes
      */
-    // Color UE Nodes Green
-    anim.UpdateNodeColor(0, 0, 200, 0);
-    anim.UpdateNodeColor(1, 0, 200, 0);
-    anim.UpdateNodeColor(2, 0, 200, 0);
-    anim.UpdateNodeColor(3, 0, 200, 0);
+    // Color the 4 UE Nodes Green
+    for (int i = 0; i < 4; i++)
+        anim.UpdateNodeColor(i, 0, 200, 0);
 
-    // Color BS Nodes Yellow
-    anim.UpdateNodeColor(4, 255, 200, 0);
-    anim.UpdateNodeColor(5, 255, 200, 0);
-    anim.UpdateNodeColor(6, 255, 200, 0);
+    // Color the 3 BS Nodes Yellow
+    for (int i = 4; i < 7; i++)
+        anim.UpdateNodeColor(i, 255, 200, 0);
 
-    // Color ISP1 Nodes Red
-    anim.UpdateNodeColor(7, 255, 0, 0);
-    anim.UpdateNodeColor(8, 255, 0, 0);
-    anim.UpdateNodeColor(9, 255, 0, 0);
+    // Color the 3 ISP1 Nodes Red
+    for (int i = 7; i < 10; i++)
+        anim.UpdateNodeColor(i, 255, 0, 0);
 
-    // Color ISP2 Nodes Red
-    anim.UpdateNodeColor(10, 255, 0, 0);
-    anim.UpdateNodeColor(11, 255, 0, 0);
+    // Color the 2 ISP2 Nodes Red
+    for (int i = 10; i < 12; i++)
+        anim.UpdateNodeColor(i, 255, 0, 0);
 
     // Color Host Node Blue
     anim.UpdateNodeColor(12, 0, 0, 255);
 
-    // Color UPF Node Purple
-    anim.UpdateNodeColor(13, 100, 10, 170);
+    // Color UPF, SGW and MME Nodes Purple
+    for (int i = 13; i < N_NODES; i++)
+        anim.UpdateNodeColor(i, 100, 10, 170);
+
 
     /**
      * Resize NetAnim Nodes by a factor of 3.
      */
     int resizeFactor = 3;
-    for (int i = 0; i <= 14; i++)
+    for (int i = 0; i < N_NODES; i++)
     {
         anim.UpdateNodeSize(i, resizeFactor, resizeFactor);
     }
@@ -515,9 +546,10 @@ main(int argc, char* argv[])
      * Run Simulation
     */
     NS_LOG_INFO("Run Simulation.");
-    std::cout << "before run" << std::endl;
+    std::cout << "Before run" << std::endl;
     Time time_stop_simulation = MilliSeconds(stop_time*1.2);
     // Simulator::Schedule(time_stop_simulation, stop_NR, vec_NrHelper);
     Simulator::Stop(time_stop_simulation);
     Simulator::Run();
+    std::cout << "After run" << std::endl;
 }
