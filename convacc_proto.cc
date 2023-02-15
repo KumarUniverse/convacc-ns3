@@ -23,6 +23,7 @@
 #define LISTENPORT 9
 #define N_NODES 16
 // N_NODES - the total number of nodes in the network topology.
+// Includes routers, host(s), UE, PGW, SGW, and MME.
 #define N_U_NODES 6
 // N_U_NODES - the total number of underlay nodes (routers + host nodes) in the network.
 //#define N_NODES 10
@@ -42,30 +43,19 @@ Part of this code contains reused code from Yudi Huang's Hex network NS3 project
 NS_LOG_COMPONENT_DEFINE("convacc_proto");
 
 void
-installOverlayApps(std::vector<Ptr<overlayApplication>> *vec_app_ptr,
-    std::vector<std::pair<uint32_t, uint32_t>> *neighbors_map_ptr, Ipv4AddressHelper *addr_ptr, NodeContainer *nc_ptr)
+installOverlayApps(std::vector<Ptr<overlayApplication>> &vec_app,
+    std::vector<std::pair<uint32_t, uint32_t>> &neighbors_vec, Ipv4AddressHelper &address, NodeContainer &nc)
 {
     /**
      * Used to install the overlay applications on the underlay nodes.
-    */
-    std::vector<Ptr<overlayApplication>> &vec_app = *vec_app_ptr;
-    vec_app[0]; // normal access thru reference.
-    std::vector<std::pair<uint32_t, uint32_t>> &neighbors_map = *neighbors_map_ptr;
-    Ipv4AddressHelper &address = *addr_ptr;
-    NodeContainer &nc = *nc_ptr;
-    
-    //PointToPointHelper link;
+    */    
     NetDeviceContainer NetDevice;
     std::vector<Ptr<Ipv4>> linkIpv4(2);
     std::vector<Ipv4InterfaceAddress> linkIpv4Addr(2);
     std::vector<uint32_t> n_devices_perNode(2);
     std::vector<Ptr<Node>> endnodes(2);
 
-    // link.DisableFlowControl();
-    // link.SetChannelAttribute("Delay", StringValue(std::to_string(20) + "us"));
-    // link.SetDeviceAttribute("DataRate", StringValue(std::to_string(2000000) + "kbps"));
-
-    for (auto const& srcdest : neighbors_map)
+    for (auto const& srcdest : neighbors_vec)
     {
         PointToPointHelper link;
         link.DisableFlowControl();
@@ -91,6 +81,18 @@ installOverlayApps(std::vector<Ptr<overlayApplication>> *vec_app_ptr,
 
         vec_app[srcdest.first]->SetSocket(linkIpv4Addr[1].GetAddress(), srcdest.second, n_devices_perNode[0] - 1);
         vec_app[srcdest.second]->SetSocket(linkIpv4Addr[0].GetAddress(), srcdest.first, n_devices_perNode[1] - 1);
+
+        // For debugging:
+        /* for (int k = 0; k < 2; k++)
+        {
+            std::cout << "Node ID = " << NetDevices[i].Get(k)->GetNode()->GetId() << "; ";
+            linkIpv4[k] = NetDevices[i].Get(k)->GetNode()->GetObject<Ipv4> ();
+            n_devices_perNode[k] = NetDevices[i].Get(k)->GetNode()->GetNDevices();
+            linkIpv4Addr[k] = linkIpv4[k]->GetAddress( n_devices_perNode[k]-1, 0 );
+            std::cout << "Address = " << linkIpv4Addr[k].GetLocal() << std::endl;
+            for (uint32_t l = 0; l < n_devices_perNode[k]; l++) NS_LOG_INFO( "device ID: " << l << " with address: " << linkIpv4[k]->GetAddress( l, 0 ).GetLocal() );
+        }
+        */
     }
 }
 
@@ -144,7 +146,7 @@ main(int argc, char* argv[])
      * Underlay Network
      *
      */
-    NodeContainer underlayNodes; // N_U_NODES number of underlay nodes in total (if UEs are included).
+    NodeContainer underlayNodes; // N_U_NODES number of underlay nodes in total (UEs are excluded).
     underlayNodes.Add(router1Nodes);
     underlayNodes.Add(router2Nodes);
     underlayNodes.Add(hostNode);
@@ -184,11 +186,10 @@ main(int argc, char* argv[])
     }
 
     // Specify the src-dest links between the underlay nodes using a map.
-    // std::map<uint32_t, uint32_t> neighbors_map;
-    std::vector<std::pair<uint32_t, uint32_t>> neighbors_map;
-    neighbors_map = {{0, 1}, {0, 2}, {1, 2}, {3, 4}, {2, 3}, {1, 5}}; // UEs excluded from underlayNodes
+    std::vector<std::pair<uint32_t, uint32_t>> neighbors_vec;
+    neighbors_vec = {{0, 1}, {0, 2}, {1, 2}, {3, 4}, {2, 3}, {0, 5}};
 
-    installOverlayApps(&vec_app, &neighbors_map, &address, &underlayNodes);
+    installOverlayApps(vec_app, neighbors_vec, address, underlayNodes);
 
 
     /**
@@ -338,7 +339,6 @@ main(int argc, char* argv[])
     for (auto it = ueNetDev.Begin (); it != ueNetDev.End (); ++it)
         DynamicCast<NrUeNetDevice> (*it)->UpdateConfig ();
 
-    // !!Need to debug here.
 
     Ptr<Node> pgw = epcHelper->GetPgwNode ();
     NodeContainer pgwContainer;
@@ -356,21 +356,21 @@ main(int argc, char* argv[])
 
     // Connect UPF (PGW) to router 2b and router 1b.
     // The PGW should already be connected to the SGW.
-    std::vector<int> upf_links = {1, 4};
-    for (int i : upf_links)
+    std::vector<int> remoteRouters = {1, 4}; // the routers connected to the UPF via a link.
+    for (int i : remoteRouters)
     {
-        Ptr<Node> remoteHost = vec_app[i]->GetNode(); // possible ERROR: Attempt to dereference 0 pointer.
-        // Connect a remoteHost to PGW. Set up routing too
+        Ptr<Node> router = vec_app[i]->GetNode(); // possible ERROR: Attempt to dereference 0 pointer.
+        // Connect a router to PGW. Set up routing too
         vec_p2ph[i].SetDeviceAttribute ("DataRate", DataRateValue (DataRate ("1000Gb/s")));
         vec_p2ph[i].SetDeviceAttribute ("Mtu", UintegerValue (10000));
         vec_p2ph[i].SetChannelAttribute ("Delay", TimeValue (Seconds (0.000)));
         vec_p2ph[i].DisableFlowControl();
-        NetDeviceContainer tmp_NetDeviceContainer = vec_p2ph[i].Install (pgw, remoteHost);
+        NetDeviceContainer tmp_NetDeviceContainer = vec_p2ph[i].Install (pgw, router);
         // std::cout << tmp_NetDeviceContainer.Get(0) << " " << tmp_NetDeviceContainer.Get(1) << std::endl;
         internetDevices.Add( tmp_NetDeviceContainer );
-        Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting (remoteHost->GetObject<Ipv4> ());
-        // remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
-        remoteHostStaticRouting->AddNetworkRouteTo (Ipv4Address (Addr_IPv4_Network_gNB.data()), Ipv4Mask ("255.0.0.0"), remoteHost->GetNDevices()-1);
+        Ptr<Ipv4StaticRouting> routerStaticRouting = ipv4RoutingHelper.GetStaticRouting (router->GetObject<Ipv4> ());
+        // routerStaticRouting->AddNetworkRouteTo (Ipv4Address ("7.0.0.0"), Ipv4Mask ("255.0.0.0"), 1);
+        routerStaticRouting->AddNetworkRouteTo (Ipv4Address (Addr_IPv4_Network_gNB.data()), Ipv4Mask ("255.0.0.0"), router->GetNDevices()-1);
     }
     Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign (internetDevices);
 
